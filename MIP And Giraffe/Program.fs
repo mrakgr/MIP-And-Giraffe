@@ -1,6 +1,8 @@
 open System
+open System.Security.Claims
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Authentication
 open Microsoft.Extensions.Hosting
 open Giraffe
 
@@ -96,7 +98,12 @@ let login_handler : HttpHandler = fun next ctx -> task {
 }
 let register_handler : HttpHandler = fun next ctx -> task {
     let! model = ctx.BindFormAsync<RegisterModel>()
-    
+    let claims = [|
+        Claim(ClaimTypes.Name, model.Username, ClaimValueTypes.String)
+        Claim(ClaimTypes.Name, model.Password, ClaimValueTypes.String)
+        Claim(ClaimTypes.Name, model.Username, ClaimValueTypes.String)
+    |]
+    ctx.SignInAsync()
     return! redirectTo false "/user" next ctx
 }
         
