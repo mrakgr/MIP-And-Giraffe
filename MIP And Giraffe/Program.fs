@@ -1,13 +1,21 @@
-open System
 open System.Security.Claims
-open System.Threading.Tasks
+open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Authentication
 open Microsoft.Extensions.Hosting
+open Microsoft.Extensions.DependencyInjection
 open Giraffe
+open Microsoft.EntityFrameworkCore
+open System.ComponentModel.DataAnnotations
 
-[<CLIMutable>] type RegisterModel = {Username : string; Password : string; Email : string}
+[<CLIMutable>] type RegisterModel = { [<Key>] Username : string; Password : string; Email : string}
 [<CLIMutable>] type LoginModel = {Username : string; Password : string}
+
+type SimpleDbContext(options) =
+    inherit DbContext(options)
+    
+    [<DefaultValue>] val mutable users : DbSet<RegisterModel>
+    member this.Users with get() = this.users and set v = this.users <- v
 
 module Pages =
     open Giraffe.ViewEngine
@@ -44,88 +52,118 @@ module Pages =
             input [_name field_name; _type "text"]
         ]
     
-    let login = master "Login" [
+    let login errors = master "Login" [
         form [_action "/login"; _method "POST"] [
             login_input "Username"
             login_input "Password"
             input [_type "submit"]
+            yield! errors |> List.map (fun er ->
+                p [_color "red"] [
+                    str $"* %s{er}"
+                ]
+                ) 
         ]
     ]
     
-    let register = master "Register" [
+    let register errors = master "Register" [
         form [_action "/register"; _method "POST"] [
             login_input "Email"
             login_input "Username"
             login_input "Password"
             input [_type "submit"]
+            yield! errors |> List.map (fun er ->
+                p [_color "red"] [
+                    str $"* %s{er}"
+                ]
+                ) 
         ]
     ]
     
-    let user (model : RegisterModel) = master "User" [
+    let user username email = master "User" [
         p [] [
             str "Welcome To The User Page"
         ]
         p [] [
             str "Email: "
-            str model.Email
+            str email
         ]
         p [] [
             str "Username:"
-            str model.Username
+            str username
         ]
     ]
-        
     
-let user_handler : HttpHandler = fun next ctx -> task {
-    let json = ctx.GetJsonSerializer()
-    match ctx.GetCookieValue("MyCookie") with
-    | Some x ->
-        let page = json.Deserialize x |> Pages.user
-        return! htmlView page next ctx
-    | None ->
-        return! redirectTo false "/login" next ctx
-}
+module Handler =
+    let user : HttpHandler = fun next ctx -> task {
+        let! result = ctx.AuthenticateAsync()
+        if result.Succeeded then
+            let p = result.Principal
+            match p.FindFirstValue(ClaimTypes.NameIdentifier), p.FindFirstValue(ClaimTypes.Email) with
+            | null, _ | _, null -> return! failwith "The claim types are invalid."
+            | username, email -> return! htmlView (Pages.user username email) next ctx
+        else
+            do! ctx.ChallengeAsync()
+            return! redirectTo false "/login" next ctx
+    }
+
+    let create_principal username email =
+        let claims = [|
+            Claim(ClaimTypes.NameIdentifier, username, ClaimValueTypes.String)
+            Claim(ClaimTypes.Email, email, ClaimValueTypes.String)
+        |]
+        let identity = ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)
+        ClaimsPrincipal(identity)
         
+    let login : HttpHandler = fun next ctx -> task {
+        let! model = ctx.BindFormAsync<LoginModel>()
+        let db = ctx.GetService<SimpleDbContext>()
+        
+        let! user = db.Users.FirstOrDefaultAsync(fun db -> model.Username = db.Username && model.Password = db.Password)
+        if isNotNull (box user) then
+            do! ctx.SignInAsync(create_principal user.Username user.Email)
+            return! redirectTo false "/user" next ctx
+        else
+            return! htmlView (Pages.login ["The username or the password is not correct."]) next ctx
+    }
     
-let login_handler : HttpHandler = fun next ctx -> task {
-    let! model = ctx.BindFormAsync<LoginModel>()
-    let user = ctx.GetCookieValue("MyCookie")
-    match user with
-    | Some x ->
-        return! redirectTo false "/user" next ctx
-    | None ->
-        return! htmlView Pages.login next ctx // TODO
-}
-let register_handler : HttpHandler = fun next ctx -> task {
-    let! model = ctx.BindFormAsync<RegisterModel>()
-    let claims = [|
-        Claim(ClaimTypes.Name, model.Username, ClaimValueTypes.String)
-        Claim(ClaimTypes.Name, model.Password, ClaimValueTypes.String)
-        Claim(ClaimTypes.Name, model.Username, ClaimValueTypes.String)
-    |]
-    ctx.SignInAsync()
-    return! redirectTo false "/user" next ctx
-}
+    let register : HttpHandler = fun next ctx -> task {
+        let! model = ctx.BindFormAsync<RegisterModel>()
+        
+        let db = ctx.GetService<SimpleDbContext>()
+        match! db.Users.AnyAsync(fun db -> model.Email = db.Email || model.Username = db.Username) with
+        | false ->
+            db.Users.Add(model) |> ignore
+            let! _ = db.SaveChangesAsync()
+            
+            do! ctx.SignInAsync(create_principal model.Username model.Email)
+            return! redirectTo false "/user" next ctx
+        | true ->
+            return! htmlView (Pages.register ["The email or the username are already registered."]) next ctx
+    }
         
 let webApp : HttpHandler =
     choose [
         GET >=> choose [
             route "/" >=> htmlView Pages.index
-            route "/login" >=> htmlView Pages.login
-            route "/register" >=> htmlView Pages.register
-            route "/user" >=> user_handler
+            route "/login" >=> htmlView (Pages.login [])
+            route "/register" >=> htmlView (Pages.register [])
+            route "/user" >=> Handler.user
         ]
         POST >=> choose [
-            route "/login" >=> login_handler
-            route "/register" >=> register_handler
+            route "/login" >=> Handler.login
+            route "/register" >=> Handler.register
         ]
         setStatusCode 404 >=> htmlView Pages.error
     ]
-
+   
 [<EntryPoint>]
 let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
+    builder.Services.AddAuthentication().AddCookie() |> ignore
+    builder.Services.AddDbContext<SimpleDbContext>(fun opts ->
+        opts.UseInMemoryDatabase("SimpleDb") |> ignore
+        ) |> ignore
             
     let app = builder.Build()
 
