@@ -1,7 +1,10 @@
 open System.Security.Claims
-open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Authentication
+open Microsoft.AspNetCore.Authentication.Cookies
+open Microsoft.AspNetCore.Authentication.OpenIdConnect
+open Microsoft.Identity.Web
+open Microsoft.Identity.Web.UI
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.DependencyInjection
@@ -162,10 +165,17 @@ let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
     builder.Services.AddAuthentication()
-        .AddCookie(fun opts ->
-            opts.LoginPath <- PathString "/login"
-            // opts.ReturnUrlParameter <- ""
-            ) |> ignore
+        // .AddCookie(fun opts ->
+        //     opts.LoginPath <- PathString "/login"
+        //     // opts.ReturnUrlParameter <- ""
+        //     )
+        .AddMicrosoftIdentityWebApp(fun x ->
+            // x.Instance <- ""
+            x.ClientId <- "f01cee69-7a9d-47ac-a1df-bc285ab72811"
+            x.TenantId <- "ec88369d-6c2f-4f15-b0c7-adbe35caec77"
+            )
+    |> ignore
+        
     builder.Services.AddDbContext<SimpleDbContext>(fun opts ->
         opts.UseInMemoryDatabase("SimpleDb") |> ignore
         ) |> ignore
