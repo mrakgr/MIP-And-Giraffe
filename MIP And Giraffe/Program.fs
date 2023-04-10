@@ -2,6 +2,7 @@ open System.Security.Claims
 open Microsoft.AspNetCore.Authentication.Cookies
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Authentication
+open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Hosting
 open Microsoft.Extensions.DependencyInjection
 open Giraffe
@@ -14,7 +15,7 @@ open System.ComponentModel.DataAnnotations
 type SimpleDbContext(options) =
     inherit DbContext(options)
     
-    [<DefaultValue>] val mutable users : DbSet<RegisterModel>
+    [<DefaultValue>] val mutable private users : DbSet<RegisterModel>
     member this.Users with get() = this.users and set v = this.users <- v
 
 module Pages =
@@ -58,7 +59,7 @@ module Pages =
             login_input "Password"
             input [_type "submit"]
             yield! errors |> List.map (fun er ->
-                p [_color "red"] [
+                p [_style "color: red"] [
                     str $"* %s{er}"
                 ]
                 ) 
@@ -72,7 +73,7 @@ module Pages =
             login_input "Password"
             input [_type "submit"]
             yield! errors |> List.map (fun er ->
-                p [_color "red"] [
+                p [_style "color: red"] [
                     str $"* %s{er}"
                 ]
                 ) 
@@ -103,7 +104,7 @@ module Handler =
             | username, email -> return! htmlView (Pages.user username email) next ctx
         else
             do! ctx.ChallengeAsync()
-            return! redirectTo false "/login" next ctx
+            return! next ctx
     }
 
     let create_principal username email =
@@ -160,7 +161,11 @@ let webApp : HttpHandler =
 let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
-    builder.Services.AddAuthentication().AddCookie() |> ignore
+    builder.Services.AddAuthentication()
+        .AddCookie(fun opts ->
+            opts.LoginPath <- PathString "/login"
+            // opts.ReturnUrlParameter <- ""
+            ) |> ignore
     builder.Services.AddDbContext<SimpleDbContext>(fun opts ->
         opts.UseInMemoryDatabase("SimpleDb") |> ignore
         ) |> ignore
