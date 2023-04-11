@@ -2,6 +2,10 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MIP And Giraffe", "MIP And Giraffe\MIP And Giraffe.fsproj", "{BD1C7FB9-DAB6-4548-BFFA-22233EB6D8E9}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "AzureAd", "AzureAd\AzureAd.fsproj", "{93D74F98-D7A5-4AB4-A47C-7768C983E541}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AzureAdCsharp", "AzureAdCsharp\AzureAdCsharp.csproj", "{26609F62-F52B-4BBF-8BB9-D7CA38506B47}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +16,13 @@ Global
 		{BD1C7FB9-DAB6-4548-BFFA-22233EB6D8E9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BD1C7FB9-DAB6-4548-BFFA-22233EB6D8E9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BD1C7FB9-DAB6-4548-BFFA-22233EB6D8E9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{93D74F98-D7A5-4AB4-A47C-7768C983E541}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{93D74F98-D7A5-4AB4-A47C-7768C983E541}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{93D74F98-D7A5-4AB4-A47C-7768C983E541}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{93D74F98-D7A5-4AB4-A47C-7768C983E541}.Release|Any CPU.Build.0 = Release|Any CPU
+		{26609F62-F52B-4BBF-8BB9-D7CA38506B47}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26609F62-F52B-4BBF-8BB9-D7CA38506B47}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26609F62-F52B-4BBF-8BB9-D7CA38506B47}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26609F62-F52B-4BBF-8BB9-D7CA38506B47}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
