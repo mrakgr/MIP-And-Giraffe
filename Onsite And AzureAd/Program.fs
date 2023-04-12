@@ -54,8 +54,24 @@ module Pages =
             input [_name field_name; _type "text"]
         ]
     
-    let login_templ route errors = master "Login" [
-        form [_action $"/%s{route}"; _method "POST"] [
+    let login errors = master "Login" [
+        form [_action $"/login"; _method "POST"] [
+            login_input "Email"
+            login_input "Password"
+            input [_type "submit"]
+            yield! errors |> List.map (fun er ->
+                p [_style "color: red"] [
+                    str $"* %s{er}"
+                ]
+                )
+            div [] [
+                a [_href "login-azuread"] [str "Login With Azure AD"]
+            ]
+        ]
+    ]
+    
+    let register errors = master "Login" [
+        form [_action $"/register"; _method "POST"] [
             login_input "Email"
             login_input "Password"
             input [_type "submit"]
@@ -75,31 +91,65 @@ module Pages =
             str "Email: "
             str email
         ]
+        p [] [
+            a [_href "/logout"] [str "Logout"]
+        ]
     ]
     
+module Cookie =
+    let Onsite = "OnsiteCookie"
+    let Azure = "AzureCookie"
+    let All = [Onsite; Azure]
+    
 module Handler =
+    let auth_all (ctx : HttpContext) =
+        let rec loop = function
+            | x :: xs -> task {
+                let! p = ctx.AuthenticateAsync(x)
+                if p.Succeeded then return Some p
+                else return! loop xs
+                }
+            | [] -> task {
+                return None
+                }
+        loop Cookie.All
+    
     let user : HttpHandler = fun next ctx -> task {
-        let! result = ctx.AuthenticateAsync()
-        if result.Succeeded then
+        match! auth_all ctx with
+        | Some result ->
             let p = result.Principal
-            return! htmlView (Pages.user (p.FindFirstValue ClaimTypes.Email)) next ctx
-        else
-            do! ctx.ChallengeAsync()
+            return! htmlView (Pages.user (p.FindFirstValue "preferred_username")) next ctx
+        | None ->
+            do! ctx.ChallengeAsync(Cookie.Onsite)
             return! next ctx
     }
     
     let login : HttpHandler = fun next ctx -> task {
-        let! result = ctx.AuthenticateAsync()
+        match! auth_all ctx with
+        | Some _ ->
+            return! redirectTo false "user" next ctx
+        | None ->
+            return! htmlView (Pages.login []) next ctx
+    }
+    
+    let login_azuread : HttpHandler = fun next ctx -> task {
+        let! result = ctx.AuthenticateAsync(Cookie.Azure)
         if result.Succeeded then
             return! redirectTo false "user" next ctx
         else
-            return! htmlView (Pages.login_templ "login" []) next ctx
+            do! ctx.ChallengeAsync("AzureOID")
+            return! next ctx
+    }
+    
+    let logout : HttpHandler = fun next ctx -> task {
+        do! Cookie.All |> List.map ctx.SignOutAsync |> System.Threading.Tasks.Task.WhenAll
+        return! redirectTo false "/" next ctx
     }
     
     module POST =
         let create_principal email =
             let claims = [|
-                Claim(ClaimTypes.Email, email, ClaimValueTypes.String)
+                Claim("preferred_username", email, ClaimValueTypes.String)
             |]
             let identity = ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)
             ClaimsPrincipal(identity)
@@ -113,7 +163,7 @@ module Handler =
                 do! ctx.SignInAsync(create_principal user.Email)
                 return! redirectTo false "/user" next ctx
             else
-                return! htmlView (Pages.login_templ "login" ["The email or the password is not correct."]) next ctx
+                return! htmlView (Pages.login ["The email or the password is not correct."]) next ctx
         }
         
         let register : HttpHandler = fun next ctx -> task {
@@ -125,18 +175,20 @@ module Handler =
                 db.Users.Add(model) |> ignore
                 let! _ = db.SaveChangesAsync()
                 
-                do! ctx.SignInAsync(create_principal model.Email)
+                do! ctx.SignInAsync(Cookie.Onsite, create_principal model.Email)
                 return! redirectTo false "/user" next ctx
             | true ->
-                return! htmlView (Pages.login_templ "register" ["The email is already registered."]) next ctx
+                return! htmlView (Pages.register ["The email is already registered."]) next ctx
         }
-        
+       
 let webApp : HttpHandler =
     choose [
         GET >=> choose [
             route "/" >=> htmlView Pages.index
             route "/login" >=> Handler.login
-            route "/register" >=> htmlView (Pages.login_templ "register" [])
+            route "/login-azuread" >=> Handler.login_azuread
+            route "/logout" >=> Handler.logout
+            route "/register" >=> htmlView (Pages.register [])
             route "/user" >=> Handler.user
         ]
         POST >=> choose [
@@ -151,14 +203,10 @@ let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
     builder.Services.AddAuthentication()
-        .AddCookie(fun opts ->
+        .AddCookie(Cookie.Onsite, fun opts ->
             opts.LoginPath <- PathString "/login"
             )
-        // .AddMicrosoftIdentityWebApp(fun x ->
-        //     // x.Instance <- ""
-        //     x.ClientId <- "f01cee69-7a9d-47ac-a1df-bc285ab72811"
-        //     x.TenantId <- "ec88369d-6c2f-4f15-b0c7-adbe35caec77"
-        //     )
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"),"AzureOID",Cookie.Azure)
     |> ignore
         
     builder.Services.AddDbContext<SimpleDbContext>(fun opts ->
