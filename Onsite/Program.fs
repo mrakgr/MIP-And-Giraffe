@@ -165,14 +165,8 @@ let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
     builder.Services.AddAuthentication()
-        // .AddCookie(fun opts ->
-        //     opts.LoginPath <- PathString "/login"
-        //     // opts.ReturnUrlParameter <- ""
-        //     )
-        .AddMicrosoftIdentityWebApp(fun x ->
-            // x.Instance <- ""
-            x.ClientId <- "f01cee69-7a9d-47ac-a1df-bc285ab72811"
-            x.TenantId <- "ec88369d-6c2f-4f15-b0c7-adbe35caec77"
+        .AddCookie(fun opts ->
+            opts.LoginPath <- PathString "/login"
             )
     |> ignore
         
