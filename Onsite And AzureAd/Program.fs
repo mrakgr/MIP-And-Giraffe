@@ -2,7 +2,6 @@ open System.Security.Claims
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Authentication
 open Microsoft.AspNetCore.Authentication.Cookies
-open Microsoft.AspNetCore.Authentication.OpenIdConnect
 open Microsoft.Identity.Web
 open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.Hosting
@@ -126,7 +125,7 @@ module Handler =
     
     let login : HttpHandler = fun next ctx -> task {
         match! auth_all ctx with
-        | Some _ ->
+        | Some x ->
             return! redirectTo false "user" next ctx
         | None ->
             return! htmlView (Pages.login []) next ctx
@@ -142,7 +141,7 @@ module Handler =
     }
     
     let logout : HttpHandler = fun next ctx -> task {
-        do! Cookie.All |> List.map ctx.SignOutAsync |> System.Threading.Tasks.Task.WhenAll
+        ctx.Request.Cookies |> Seq.iter (fun (KeyValue(k,v)) -> ctx.Response.Cookies.Delete(k))
         return! redirectTo false "/" next ctx
     }
     
