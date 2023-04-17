@@ -55,27 +55,26 @@ let main args =
     let builder = WebApplication.CreateBuilder(args)
     builder.Services.AddGiraffe() |> ignore
 
-    // if builder.Environment.IsDevelopment() then
-    builder.Services.AddCors() |> ignore
-
     builder.Services
         .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
         .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
         |> ignore
 
+    builder.Services.AddCors() |> ignore
+
     let app = builder.Build()
 
-    // if app.Environment.IsDevelopment() then
     app.UseCors(fun opts ->
-        opts.WithOrigins("http://localhost:8080").AllowCredentials().AllowAnyHeader().AllowAnyMethod() |> ignore
+        opts.WithOrigins("http://localhost:8080").AllowCredentials().AllowAnyMethod().AllowAnyHeader() |> ignore
         ) |> ignore
 
     app.UseAuthentication()
         .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
-            if ctx.User = null || ctx.User.Identity.IsAuthenticated = false then
-                return! ctx.ChallengeAsync()
-            else
-                return! next.Invoke(ctx)
+            ctx.Response.Redirect("http://www.google.com/",false)
+            // if ctx.User = null || ctx.User.Identity.IsAuthenticated = false then
+            //     return! ctx.ChallengeAsync()
+            // else
+            //     return! next.Invoke(ctx)
         }))
         .UseGiraffe(webApp)
 
