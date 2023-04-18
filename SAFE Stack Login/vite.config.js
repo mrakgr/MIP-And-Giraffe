@@ -15,8 +15,7 @@ export default ({mode}) => {
         server: {
             port: process.env.PORT,
             proxy: {
-                "/api": {target, changeOrigin: true},
-                "/socket": {target, ws: true}
+                "/": {target, changeOrigin: true}
             }
         },
         plugins: [react()],
