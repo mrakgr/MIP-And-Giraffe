@@ -55,26 +55,27 @@ let webApp : HttpHandler =
 [<EntryPoint>]
 let main _ =
     let builder = WebApplication.CreateBuilder(WebApplicationOptions(
-        WebRootPath = Path.Combine(Directory.GetCurrentDirectory(), "public")
+        WebRootPath = "public"
         ))
     builder.Services.AddGiraffe() |> ignore
 
-    // builder.Services
-    //     .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-    //     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
-    //     |> ignore
+    builder.Services
+        .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+        |> ignore
 
     let app = builder.Build()
 
     app
-        // .UseCookiePolicy(CookiePolicyOptions(Secure = CookieSecurePolicy.Always))
-        // .UseAuthentication()
-        // .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
-        //     if ctx.User = null || ctx.User.Identity.IsAuthenticated = false then
-        //         return! ctx.ChallengeAsync()
-        //     else
-        //         return! next.Invoke(ctx)
-        // }))
+        .UseCookiePolicy(CookiePolicyOptions(MinimumSameSitePolicy=SameSiteMode.Lax))
+        .UseHttpsRedirection()
+        .UseAuthentication()
+        .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
+            if ctx.User = null || ctx.User.Identity.IsAuthenticated = false then
+                return! ctx.ChallengeAsync()
+            else
+                return! next.Invoke(ctx)
+        }))
         .UseFileServer()
         .UseGiraffe(webApp) |> ignore
 
