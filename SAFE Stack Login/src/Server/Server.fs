@@ -59,19 +59,23 @@ let main _ =
     builder.Services
         .AddGiraffe()
         .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"))
+        .AddMicrosoftIdentityWebApp(fun x ->
+            x.Instance <- AzureAD.config.Instance
+            x.TenantId <- AzureAD.config.TenantId
+            x.ClientId <- AzureAD.config.ClientId
+            )
         |> ignore
 
     let app = builder.Build()
 
     app
         .UseCookiePolicy(CookiePolicyOptions(Secure = CookieSecurePolicy.Always))
-        .UseAuthentication()
         .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
-            if ctx.User = null || ctx.User.Identity.IsAuthenticated = false then
-                return! ctx.ChallengeAsync()
-            else
+            let! r = ctx.AuthenticateAsync()
+            if r.Succeeded then
                 return! next.Invoke(ctx)
+            else
+                return! ctx.ForbidAsync()
         }))
         .UseFileServer()
         .UseGiraffe(webApp)
