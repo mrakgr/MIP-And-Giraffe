@@ -65,7 +65,6 @@ let main _ =
     let app = builder.Build()
 
     app
-        .UseForwardedHeaders()
         .UseCookiePolicy(CookiePolicyOptions(Secure = CookieSecurePolicy.Always))
         .UseAuthentication()
         .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
