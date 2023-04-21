@@ -5,6 +5,7 @@ open System.Threading.Tasks
 open Fable.Remoting.Server
 open Fable.Remoting.Giraffe
 
+open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Authentication
@@ -58,18 +59,24 @@ let main _ =
 
     builder.Services
         .AddGiraffe()
-        .AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApp(fun x ->
-            x.Instance <- AzureAD.config.Instance
-            x.TenantId <- AzureAD.config.TenantId
-            x.ClientId <- AzureAD.config.ClientId
+        .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApi(
+            (fun x ->
+                ()
+                ),
+            (fun x ->
+                x.Instance <- AzureAD.config.Instance
+                x.ClientId <- AzureAD.config.ClientId
+                x.TenantId <- AzureAD.config.TenantId
+                x.SignInScheme <- "/signin-oidc"
+                ),
+            subscribeToJwtBearerMiddlewareDiagnosticsEvents = true
             )
         |> ignore
 
     let app = builder.Build()
-
+    requiresAuthentication
     app
-        .UseCookiePolicy(CookiePolicyOptions(Secure = CookieSecurePolicy.Always))
         .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
             let! r = ctx.AuthenticateAsync()
             if r.Succeeded then

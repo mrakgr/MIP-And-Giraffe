@@ -1,10 +1,13 @@
 module Index
 
 open Elmish
-open Fable.Remoting.Client
+
 open Shared
 
-type Model = { Todos: Todo list; Input: string }
+type Model = {
+    Todos: Todo list
+    Input: string
+}
 
 type Msg =
     | GotTodos of Todo list
@@ -12,32 +15,20 @@ type Msg =
     | AddTodo
     | AddedTodo of Todo
 
-let todosApi =
-    Remoting.createApi ()
-    |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.buildProxy<ITodosApi>
-
-let init () : Model * Cmd<Msg> =
+let init todosApi () : Model * Cmd<Msg> =
     let model = { Todos = []; Input = "" }
 
-    let cmd =
-        Cmd.OfAsync.perform
-            (fun () -> async {
-
-                return! todosApi.getTodos()
-        }) () GotTodos
+    let cmd = Cmd.OfAsync.perform todosApi.getTodos () GotTodos
 
     model, cmd
 
-let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
+let update todosApi (msg: Msg) (model: Model) : Model * Cmd<Msg> =
     match msg with
     | GotTodos todos -> { model with Todos = todos }, Cmd.none
     | SetInput value -> { model with Input = value }, Cmd.none
     | AddTodo ->
         let todo = Todo.create model.Input
-
         let cmd = Cmd.OfAsync.perform todosApi.addTodo todo AddedTodo
-
         { model with Input = "" }, cmd
     | AddedTodo todo -> { model with Todos = model.Todos @ [ todo ] }, Cmd.none
 

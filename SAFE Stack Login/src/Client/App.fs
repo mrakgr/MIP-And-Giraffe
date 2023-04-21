@@ -1,11 +1,11 @@
 module App
 
+open System
 open Elmish
 open Elmish.React
 open Fable.Core
+open Fable.Remoting.Client
 open Feliz
-open Feliz.React.Msal
-open Feliz.React.Msal.Hooks
 open Shared
 
 #if DEBUG
@@ -13,66 +13,58 @@ open Elmish.Debug
 open Elmish.HMR
 #endif
 
-let client : IPublicClientApplication =
-    let auth : Auth = { clientId = Shared.AzureAD.config.ClientId
-                        authority = $"https://login.microsoftonline.com/{AzureAD.config.TenantId}"
-                        knownAuthorities = [|"login.live.com"|]
-                        redirectUri = null
-                        postLogoutRedirectUri = null }
-    let cache : Cache = { cacheLocation = "sessionStorage"
-                          storeAuthStateInCookie = false }
-    let config : MsalConfig = { auth = auth
-                                cache = cache }
-    createClient config
+let createProgram access_token =
+    let todosApi =
+        Remoting.createApi ()
+        |> Remoting.withAuthorizationHeader $"Bearer {access_token}"
+        |> Remoting.withRouteBuilder Route.builder
+        |> Remoting.buildProxy<ITodosApi>
 
-type AuthResult = {
-    acquireToken : InteractionType * AuthenticationRequest option -> obj
-    login : InteractionType * AuthenticationRequest option -> unit
-    result : obj
-    error : obj
-}
+    Program.mkProgram (Index.init todosApi) (Index.update todosApi) Index.view
+    #if DEBUG
+    |> Program.withConsoleTrace
+    #endif
+    |> Program.withReactSynchronous "elmish-app"
+    #if DEBUG
+    |> Program.withDebugger
+    #endif
+    |> Program.run
 
-[<ReactComponent>]
-let Main() =
-    let x : AuthResult = useMsalAuthentication(InteractionType.Redirect,JS.undefined,JS.undefined)
-    // let tok = x.acquireToken(InteractionType.Redirect,None)
+open Fable.Msal
 
-    let ctx = useMsal()
+let pciConfig =
+    let opts = msalBrowserAuthOptions {
+        clientId AzureAD.config.ClientId
+        authority AzureAD.config.Authority
+        }
+    msalConfiguration { auth opts }
 
-    Html.div [
-        Html.p "Anyone can see this paragraph"
-        AuthenticatedTemplate.create [
-            AuthenticatedTemplate.children [
-                Html.p $"Signed in as: {ctx.accounts |> Array.tryHead |> Option.map (fun x -> x.username)}"
+let pci = PublicClientApplication(pciConfig)
+
+module Error =
+    [<Import("InteractionRequiredAuthError", from = "@azure/msal-browser")>]
+    type InteractionRequiredAuthError() =
+        inherit Exception()
+
+promise {
+    let fin (authResult : AuthenticationResult) = createProgram authResult.accessToken
+    match! pci.handleRedirectPromise () with
+    | Some authResult ->
+        Browser.Dom.window.sessionStorage.setItem("current_account",authResult.account |> JS.JSON.stringify)
+        return fin authResult
+    | None ->
+        match Browser.Dom.window.sessionStorage.getItem("current_account") with
+        | null -> do! pci.loginRedirect()
+        | acc ->
+            let c = msalSilentRequest {account (JS.JSON.parse acc :?> AccountInfo)}
+            let! authResult = pci.acquireTokenSilent c
+            return fin authResult
+} |> Promise.catchEnd (function
+    | :? Error.InteractionRequiredAuthError -> pci.loginRedirect() |> Promise.start
+    | ex ->
+        let view =
+            Html.div [
+                Html.text $"An error happened. Message: %s{ex.Message}"
             ]
-        ]
-
-        UnauthenticatedTemplate.create [
-            UnauthenticatedTemplate.children [
-                Html.p "No users are signed in."
-            ]
-        ]
-    ]
-
-[<ReactComponent>]
-let App () =
-    MsalProvider.create[
-        MsalProvider.instance client
-        MsalProvider.children[
-            Main()
-        ]
-    ]
-
-open Browser.Dom
-ReactDOM.createRoot(document.getElementById("elmish-app")).render(App())
-
-
-// Program.mkProgram Index.init Index.update Index.view
-// #if DEBUG
-// |> Program.withConsoleTrace
-// #endif
-// |> Program.withReactSynchronous "elmish-app"
-// #if DEBUG
-// |> Program.withDebugger
-// #endif
-// |> Program.run
+        ReactDOM.createRoot(Browser.Dom.document.getElementById "elmish-app").render view
+    )

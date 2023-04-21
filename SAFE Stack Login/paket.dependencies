@@ -1,6 +1,8 @@
 source https://api.nuget.org/v3/index.json
 storage: none
 
+nuget Fable.Msal
+nuget Fable.Promise
 nuget Feliz.React.Msal
 nuget Fsharp.Core
 nuget Fable.Remoting.Giraffe
