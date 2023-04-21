@@ -20,7 +20,12 @@ let todosApi =
 let init () : Model * Cmd<Msg> =
     let model = { Todos = []; Input = "" }
 
-    let cmd = Cmd.OfAsync.perform todosApi.getTodos () GotTodos
+    let cmd =
+        Cmd.OfAsync.perform
+            (fun () -> async {
+
+                return! todosApi.getTodos()
+        }) () GotTodos
 
     model, cmd
 
