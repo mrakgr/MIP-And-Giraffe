@@ -34,8 +34,8 @@ open Fable.Msal
 
 let pciConfig =
     let opts = msalBrowserAuthOptions {
-        clientId AzureAD.config.ClientId
-        authority AzureAD.config.Authority
+        clientId "fd12b58b-6c39-4f86-ba02-98e6d7ee5eb5"
+        authority $"https://login.microsoftonline.com/ec88369d-6c2f-4f15-b0c7-adbe35caec77"
         }
     msalConfiguration { auth opts }
 
@@ -46,6 +46,15 @@ module Error =
     type InteractionRequiredAuthError() =
         inherit Exception()
 
+let redirectConfig = msalRedirectRequest {
+    scopes [ "openid"; "profile" ]
+}
+
+let silentConfig acc = msalSilentRequest {
+    account acc
+    scopes [ "openid"; "profile" ]
+}
+
 promise {
     let fin (authResult : AuthenticationResult) = createProgram authResult.accessToken
     match! pci.handleRedirectPromise () with
@@ -54,13 +63,12 @@ promise {
         return fin authResult
     | None ->
         match Browser.Dom.window.sessionStorage.getItem("current_account") with
-        | null -> do! pci.loginRedirect()
+        | null -> do! pci.loginRedirect(redirectConfig)
         | acc ->
-            let c = msalSilentRequest {account (JS.JSON.parse acc :?> AccountInfo)}
-            let! authResult = pci.acquireTokenSilent c
+            let! authResult = pci.acquireTokenSilent (silentConfig (JS.JSON.parse acc :?> AccountInfo))
             return fin authResult
 } |> Promise.catchEnd (function
-    | :? Error.InteractionRequiredAuthError -> pci.loginRedirect() |> Promise.start
+    | :? Error.InteractionRequiredAuthError -> pci.loginRedirect(redirectConfig) |> Promise.start
     | ex ->
         let view =
             Html.div [
