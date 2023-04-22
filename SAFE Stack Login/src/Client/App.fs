@@ -34,7 +34,7 @@ open Fable.Msal
 
 let pciConfig =
     let opts = msalBrowserAuthOptions {
-        clientId "fd12b58b-6c39-4f86-ba02-98e6d7ee5eb5"
+        clientId "8ca7907a-d757-40ea-96a8-9e1a75a99f30"
         authority $"https://login.microsoftonline.com/ec88369d-6c2f-4f15-b0c7-adbe35caec77"
         }
     msalConfiguration { auth opts }
@@ -47,12 +47,16 @@ module Error =
         inherit Exception()
 
 let redirectConfig = msalRedirectRequest {
-    scopes [ "openid"; "profile" ]
+    scopes [
+        "api://c23c5d70-996d-4e55-a458-2940bd2e79b4/Any"
+    ]
 }
 
 let silentConfig acc = msalSilentRequest {
     account acc
-    scopes [ "openid"; "profile" ]
+    scopes [
+        "api://c23c5d70-996d-4e55-a458-2940bd2e79b4/Any"
+    ]
 }
 
 promise {

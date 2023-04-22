@@ -66,7 +66,9 @@ let main _ =
 
     let app = builder.Build()
 
+
     app
+        .UseFileServer()
         .UseAuthentication()
         .Use(Func<HttpContext,RequestDelegate,Task>(fun ctx next -> task {
             if ctx.User.Identity.IsAuthenticated then return! next.Invoke(ctx)
