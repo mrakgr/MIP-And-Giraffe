@@ -17,7 +17,6 @@ type Msg =
 
 let init todosApi () : Model * Cmd<Msg> =
     let model = { Todos = []; Input = "" }
-
     let cmd = Cmd.OfAsync.perform todosApi.getTodos () GotTodos
 
     model, cmd
