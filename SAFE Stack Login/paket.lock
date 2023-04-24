@@ -167,9 +167,9 @@ NUGET
     Feliz.CompilerPlugins (2.2) - restriction: >= netstandard2.0
       Fable.AST (>= 4.2.1) - restriction: >= netstandard2.0
       FSharp.Core (>= 4.7.2) - restriction: >= netstandard2.0
-    Feliz.React.Msal (0.2)
-      Feliz (>= 2.0.0-prerelease-003) - restriction: >= netstandard2.0
-      FSharp.Core (>= 7.0) - restriction: >= netstandard2.0
+    Feliz.React.Msal (0.2.4)
+      Feliz (>= 2.6.0-prerelease) - restriction: >= netstandard2.0
+      FSharp.Core (>= 7.0.200) - restriction: >= netstandard2.0
       Microsoft.SourceLink.GitHub (>= 1.1.1) - restriction: >= netstandard2.0
     FParsec (1.1.1) - restriction: >= netstandard2.0
       FSharp.Core (>= 4.3.4) - restriction: || (>= net45) (>= netstandard2.0)
