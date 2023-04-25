@@ -1,5 +1,7 @@
 ﻿module Client.Auth
 
+open System
+open Fable.Core
 open Fable.Msal
 
 let pciConfig =
@@ -11,19 +13,19 @@ let pciConfig =
 
 let pci = PublicClientApplication(pciConfig)
 
-module Error =
-    [<Import("InteractionRequiredAuthError", from = "@azure/msal-browser")>]
-    type InteractionRequiredAuthError() =
-        inherit Exception()
+[<Import("InteractionRequiredAuthError", from = "@azure/msal-browser")>]
+type InteractionRequiredAuthError() =
+    inherit Exception()
 
 let redirectConfig = msalRedirectRequest {
+    prompt "none"
     scopes [
         "api://c23c5d70-996d-4e55-a458-2940bd2e79b4/Any"
     ]
 }
 
-let silentConfig acc = msalSilentRequest {
-    account acc
+let silentConfig (x : AccountInfo) = msalSilentRequest {
+    account x
     scopes [
         "api://c23c5d70-996d-4e55-a458-2940bd2e79b4/Any"
     ]
@@ -32,11 +34,41 @@ let silentConfig acc = msalSilentRequest {
 let acquire_token () =
     let login_redirect redirectConfig = pci.loginRedirect(redirectConfig) |> unbox
     promise {
-        match Browser.Dom.window.sessionStorage.getItem("current_account") with
+        match Browser.Dom.window.localStorage.getItem("old_account") with
         | null -> return login_redirect redirectConfig
         | acc ->
-            try
-                return! pci.acquireTokenSilent (silentConfig (JS.JSON.parse acc :?> AccountInfo))
-            with
-                :? Error.InteractionRequiredAuthError -> return login_redirect redirectConfig
+            let authResult = JS.JSON.parse acc :?> AccountInfo
+            try return! pci.acquireTokenSilent (silentConfig authResult)
+            with :? InteractionRequiredAuthError -> return login_redirect redirectConfig
     }
+
+open Shared
+open Fable.Remoting.Client
+
+let create_proxy' (access_token : AuthenticationResult) =
+    Remoting.createApi ()
+    |> Remoting.withAuthorizationHeader $"Bearer %s{access_token.accessToken}"
+    |> Remoting.withRouteBuilder Route.builder
+    |> Remoting.buildProxy<ITodosApi>
+
+open FSharp.Reflection
+let wrap_proxy (proxy : ITodosApi) =
+    let mutable r = proxy
+    FSharpType.GetRecordFields(typeof<ITodosApi>)
+    |> Array.map (fun m ->
+        if m.PropertyType |> FSharpType.GetFunctionElements |> snd |> FSharpType.IsFunction then
+            failwith "The function must not be nested."
+        box (fun x -> async {
+            let body () : _ Async = unbox (FSharpValue.GetRecordField(r,m)) x
+            try return! body ()
+            with :? ProxyRequestException as ex when ex.StatusCode = 401 ->
+                let p = promise {
+                    let! authResult = acquire_token ()
+                    r <- create_proxy' authResult
+                    return! body () |> Async.StartAsPromise
+                    }
+                return! Async.AwaitPromise p
+            }))
+    |> fun x -> FSharpValue.MakeRecord(typeof<ITodosApi>,x) :?> ITodosApi
+
+let create_proxy access_token = create_proxy' access_token |> wrap_proxy
