@@ -27,14 +27,13 @@ let createProgram access_token =
 
 promise {
     do! pci.initialize()
-    let fin (authResult : Fable.Msal.AuthenticationResult) = createProgram authResult
     match! pci.handleRedirectPromise () with
     | Some authResult ->
         Browser.Dom.window.localStorage.setItem("old_account",authResult.account |> JS.JSON.stringify)
-        return fin authResult
+        return createProgram (Some authResult)
     | None ->
-        let! authResult = acquire_token()
-        return fin authResult
+        return createProgram None
+
 } |> Promise.catchEnd (fun ex ->
         let view =
             Html.div [

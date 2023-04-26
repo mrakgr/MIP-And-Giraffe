@@ -45,9 +45,9 @@ let acquire_token () =
 open Shared
 open Fable.Remoting.Client
 
-let inline create_proxy' (access_token : AuthenticationResult) =
+let inline private create_proxy' (authResult : AuthenticationResult option) =
     Remoting.createApi ()
-    |> Remoting.withAuthorizationHeader $"Bearer %s{access_token.accessToken}"
+    |> Option.foldBack (fun authResult -> Remoting.withAuthorizationHeader $"Bearer %s{authResult.accessToken}") authResult
     |> Remoting.withRouteBuilder Route.builder
     |> Remoting.buildProxy<'api>
 
@@ -64,11 +64,13 @@ let inline wrap_proxy (proxy : 'api) =
             with :? ProxyRequestException as ex when ex.StatusCode = 401 ->
                 let p = promise {
                     let! authResult = acquire_token ()
-                    r <- create_proxy' authResult
+                    r <- create_proxy' (Some authResult)
                     return! body () |> Async.StartAsPromise
                     }
                 return! Async.AwaitPromise p
             }))
     |> fun x -> FSharpValue.MakeRecord(typeof<'api>,x) :?> 'api
 
-let create_proxy access_token = create_proxy' access_token |> wrap_proxy
+let inline private create_proxy_templ access_token = create_proxy' access_token |> wrap_proxy
+
+let create_proxy access_token : ITodosApi = create_proxy_templ access_token
