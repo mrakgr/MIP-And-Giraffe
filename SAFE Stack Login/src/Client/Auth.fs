@@ -45,16 +45,16 @@ let acquire_token () =
 open Shared
 open Fable.Remoting.Client
 
-let create_proxy' (access_token : AuthenticationResult) =
+let inline create_proxy' (access_token : AuthenticationResult) =
     Remoting.createApi ()
     |> Remoting.withAuthorizationHeader $"Bearer %s{access_token.accessToken}"
     |> Remoting.withRouteBuilder Route.builder
-    |> Remoting.buildProxy<ITodosApi>
+    |> Remoting.buildProxy<'api>
 
 open FSharp.Reflection
-let wrap_proxy (proxy : ITodosApi) =
+let inline wrap_proxy (proxy : 'api) =
     let mutable r = proxy
-    FSharpType.GetRecordFields(typeof<ITodosApi>)
+    FSharpType.GetRecordFields(typeof<'api>)
     |> Array.map (fun m ->
         if m.PropertyType |> FSharpType.GetFunctionElements |> snd |> FSharpType.IsFunction then
             failwith "The function must not be nested."
@@ -69,6 +69,6 @@ let wrap_proxy (proxy : ITodosApi) =
                     }
                 return! Async.AwaitPromise p
             }))
-    |> fun x -> FSharpValue.MakeRecord(typeof<ITodosApi>,x) :?> ITodosApi
+    |> fun x -> FSharpValue.MakeRecord(typeof<'api>,x) :?> 'api
 
 let create_proxy access_token = create_proxy' access_token |> wrap_proxy
