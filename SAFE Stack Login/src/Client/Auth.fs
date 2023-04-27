@@ -34,7 +34,7 @@ let silentConfig (x : AccountInfo) = msalSilentRequest {
 let acquire_token () =
     let login_redirect redirectConfig = pci.loginRedirect(redirectConfig) |> unbox
     promise {
-        match Browser.Dom.window.localStorage.getItem("old_account") with
+        match! LocalForage.getItem "old_account" with
         | null -> return login_redirect redirectConfig
         | acc ->
             let authResult = JS.JSON.parse acc :?> AccountInfo

@@ -1,8 +1,8 @@
 module App
 
+open Client
 open Elmish
 open Elmish.React
-open Fable.Core
 open Feliz
 
 open Client.Auth
@@ -29,7 +29,7 @@ promise {
     do! pci.initialize()
     match! pci.handleRedirectPromise () with
     | Some authResult ->
-        Browser.Dom.window.localStorage.setItem("old_account",authResult.account |> JS.JSON.stringify)
+        do! LocalForage.setItem "old_account" authResult.account
         return createProgram (Some authResult)
     | None ->
         return createProgram None
@@ -41,3 +41,4 @@ promise {
             ]
         ReactDOM.createRoot(Browser.Dom.document.getElementById "elmish-app").render view
     )
+
